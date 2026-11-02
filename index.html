@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Carter Checkers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap">
+<style>
+/* Minimal checkers: one board, Carter's face set into every piece. */
+:root{
+  --bg:#f3f2ee; --surface:#ffffff; --ink:#151515; --muted:#8b8a85; --line:#dddcd6;
+  --light-sq:#ece6da; --dark-sq:#6f5a46; --hint:#3355ff;
+  --f:"Space Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{min-height:100vh;overflow-x:hidden;background:var(--bg);color:var(--ink);font-family:var(--f);display:flex;flex-direction:column;align-items:center;padding:24px 16px;-webkit-tap-highlight-color:transparent}
+
+header{width:min(560px,100%);display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px}
+h1{font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0}
+.status{font-size:14px;color:var(--muted)}
+.status b{color:var(--ink);font-weight:500}
+
+/* Real 3D: the board is a tilted plane under perspective; pieces are stacks of discs on it. */
+.stage{width:min(560px,calc(100% - 28px));perspective:1300px;perspective-origin:50% 0;margin:6px 0 34px}
+.board{position:relative;width:100%;aspect-ratio:1;display:grid;grid-template-columns:repeat(8,1fr);
+  transform:rotateX(30deg);transform-origin:50% 60%;transform-style:preserve-3d;
+  box-shadow:0 0 0 12px #4a3626,0 0 0 13px #2a1d13,0 40px 60px -10px rgba(40,25,10,.55)}
+/* front face of the wooden frame, folded down toward the viewer */
+.board::after{content:"";position:absolute;left:-13px;right:-13px;top:calc(100% + 13px);height:22px;
+  transform-origin:top;transform:rotateX(-90deg);background:linear-gradient(#3a2a1d,#20160e)}
+.sq{position:relative;display:flex;align-items:center;justify-content:center;transform-style:preserve-3d}
+.sq.l{background:var(--light-sq);background-image:linear-gradient(135deg,rgba(255,255,255,.25),rgba(0,0,0,.04))}
+.sq.d{background:var(--dark-sq);background-image:repeating-linear-gradient(100deg,rgba(255,255,255,.03) 0 2px,rgba(0,0,0,.04) 2px 5px),linear-gradient(135deg,rgba(255,255,255,.05),rgba(0,0,0,.1))}
+.sq.d.target{cursor:pointer}
+.sq.d.target::after{content:"";width:28%;height:28%;border-radius:50%;background:var(--hint);opacity:.6;box-shadow:0 0 0 4px rgba(51,85,255,.2)}
+.sq.last{box-shadow:inset 0 0 0 3px rgba(255,214,120,.6)}
+
+/* The piece: a short cylinder (stacked edge layers) with a lacquered photo inlay on top. */
+.pc{width:82%;height:82%;position:relative;transform-style:preserve-3d;transition:transform .18s ease}
+.pc .sh{position:absolute;inset:0;border-radius:50%;background:rgba(0,0,0,.55);filter:blur(4px);transform:translate(2px,4px)}
+.pc .ly{position:absolute;inset:0;border-radius:50%;background:var(--edge);
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
+.pc .ly.hi{background:var(--edge-hi)}
+.pc .top{position:absolute;inset:0;border-radius:50%;background:var(--rim);transform:translateZ(var(--h));
+  box-shadow:inset 0 2px 2px rgba(255,255,255,.35),inset 0 -3px 4px rgba(0,0,0,.4)}
+.pc .face{position:absolute;inset:9%;border-radius:50%;background:var(--img) center/cover no-repeat;
+  filter:var(--tint);box-shadow:inset 0 0 0 2px rgba(0,0,0,.35),0 0 0 1px rgba(255,255,255,.15)}
+/* glossy lacquer + vignette over the photo so it reads as set under a clear coat */
+.pc .face::after{content:"";position:absolute;inset:0;border-radius:50%;
+  background:radial-gradient(120% 70% at 35% 15%,rgba(255,255,255,.4),rgba(255,255,255,0) 45%),
+             radial-gradient(circle,rgba(0,0,0,0) 55%,rgba(0,0,0,.45) 100%)}
+.pc{--h:10px}
+.pc.red{--rim:radial-gradient(circle at 35% 30%,#e0574a,#a3241c 70%);--edge:#7a1a12;--edge-hi:#b4372b;--tint:saturate(1.05) contrast(1.05)}
+.pc.blk{--rim:radial-gradient(circle at 35% 30%,#4a4a4a,#151515 70%);--edge:#0a0a0a;--edge-hi:#3a3a3a;--tint:grayscale(1) contrast(1.15) brightness(.95)}
+.pc.king{--h:20px}
+.pc.king .top::after{content:"♛";position:absolute;top:-30%;left:50%;transform:translateX(-50%) rotateX(-30deg);transform-origin:bottom;
+  font-size:clamp(16px,4vw,26px);line-height:1;color:#f4c542;text-shadow:0 1px 0 #8a6510,0 2px 4px rgba(0,0,0,.5)}
+.pc.mine{cursor:pointer}
+.pc.mine:hover{transform:translateZ(5px)}
+.pc.sel{transform:translateZ(14px);animation:lift .22s cubic-bezier(.3,.7,.4,1)}
+@keyframes lift{from{transform:translateZ(0)}}
+.sq.d.target::after{animation:dot .25s ease-out}
+@keyframes dot{from{transform:scale(0);opacity:0}}
+.pc.crowned .top::after{animation:crown .5s .4s cubic-bezier(.3,1.6,.5,1) backwards}
+@keyframes crown{from{transform:translateX(-50%) rotateX(-30deg) translateY(-30px) scale(.2);opacity:0}}
+.sq.last{transition:box-shadow .3s}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.pc.sel .top{box-shadow:inset 0 2px 2px rgba(255,255,255,.35),0 0 0 3px var(--hint),0 0 18px 2px rgba(51,85,255,.5)}
+.pc.must .top{box-shadow:inset 0 2px 2px rgba(255,255,255,.35),0 0 0 3px #f4c542}
+
+footer{width:min(560px,100%);display:flex;justify-content:space-between;align-items:center;margin-top:24px;gap:12px;flex-wrap:wrap}
+.count{display:flex;gap:16px;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.count span{display:flex;align-items:center;gap:6px}
+.dot{width:12px;height:12px;border-radius:50%}
+.dot.red{background:#c0392b}.dot.blk{background:#1a1a1a}
+.btns{display:flex;gap:8px}
+button{font:inherit;font-size:14px;font-weight:500;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:8px 14px;border-radius:8px;cursor:pointer}
+button:hover{border-color:var(--ink)}
+button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Carter Checkers</h1>
+  <div class="status" id="status"></div>
+</header>
+<div class="stage"><div class="board" id="board"></div></div>
+<footer>
+  <div class="count"><span><i class="dot red"></i><b id="cr">12</b></span><span><i class="dot blk"></i><b id="cb">12</b></span></div>
+  <div class="btns">
+    <button id="mode">vs Computer</button>
+    <button id="reset">New game</button>
+  </div>
+</footer>
+
+<script>
+// Board: 8x8 array, null or {c:'r'|'b', k:bool}. Red starts at the bottom and moves first.
+const boardEl = document.getElementById('board');
+const statusEl = document.getElementById('status');
+let B, turn, sel, chain, last, vsAI = true, over = false;
+
+// Crop the photo to a face-centred square once, so every piece shows the face, not the room.
+let faceURL = 'carter.jpg';
+const img = new Image();
+img.onload = () => {
+  const cx = 172, cy = 315, r = 125, s = 256;
+  const cv = document.createElement('canvas'); cv.width = cv.height = s;
+  cv.getContext('2d').drawImage(img, cx - r, cy - r, r * 2, r * 2, 0, 0, s, s);
+  faceURL = cv.toDataURL('image/jpeg', .92);
+  faceReady = true; render();
+};
+img.onerror = () => { faceReady = true; render(); };
+img.src = 'carter.jpg';
+
+// Animation hand-off: apply() records what changed, the next render() plays it on the fresh DOM.
+let anim = null, intro = true, faceReady = false;
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function reset() {
+  B = Array.from({length: 8}, (_, y) => Array.from({length: 8}, (_, x) =>
+    (x + y) % 2 ? (y < 3 ? {c: 'b', k: false} : y > 4 ? {c: 'r', k: false} : null) : null));
+  turn = 'r'; sel = null; chain = null; last = null; over = false; anim = null; intro = true;
+  render();
+}
+
+const inside = (x, y) => x >= 0 && y >= 0 && x < 8 && y < 8;
+const dirs = p => p.k ? [[1,1],[1,-1],[-1,1],[-1,-1]] : p.c === 'r' ? [[1,-1],[-1,-1]] : [[1,1],[-1,1]];
+
+function movesFor(x, y, jumpsOnly) {
+  const p = B[y][x], out = [];
+  for (const [dx, dy] of dirs(p)) {
+    const nx = x + dx, ny = y + dy;
+    if (!inside(nx, ny)) continue;
+    const q = B[ny][nx];
+    if (!q) { if (!jumpsOnly) out.push({x, y, tx: nx, ty: ny}); }
+    else if (q.c !== p.c && inside(nx + dx, ny + dy) && !B[ny + dy][nx + dx])
+      out.push({x, y, tx: nx + dx, ty: ny + dy, cap: [nx, ny]});
+  }
+  return out;
+}
+
+// Captures are mandatory: if any jump exists for the side, only jumps are legal.
+function legal(c) {
+  if (chain) return movesFor(chain[0], chain[1], true);
+  let all = [];
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) if (B[y][x]?.c === c) all.push(...movesFor(x, y));
+  const jumps = all.filter(m => m.cap);
+  return jumps.length ? jumps : all;
+}
+
+function apply(m) {
+  const p = B[m.y][m.x];
+  B[m.ty][m.tx] = p; B[m.y][m.x] = null;
+  last = [m.x, m.y, m.tx, m.ty];
+  let crowned = false, capPiece = null;
+  if (m.cap) { capPiece = B[m.cap[1]][m.cap[0]]; B[m.cap[1]][m.cap[0]] = null; }
+  if (!p.k && (m.ty === 0 && p.c === 'r' || m.ty === 7 && p.c === 'b')) { p.k = true; crowned = true; }
+  anim = {fx: m.x, fy: m.y, tx: m.tx, ty: m.ty, cap: m.cap, capPiece, crowned};
+  // A capture continues with the same piece while more jumps exist (crowning ends the turn).
+  if (m.cap && !crowned && movesFor(m.tx, m.ty, true).length) { chain = [m.tx, m.ty]; sel = chain; return; }
+  chain = null; sel = null;
+  turn = turn === 'r' ? 'b' : 'r';
+  if (!legal(turn).length) over = true;
+}
+
+function click(x, y) {
+  if (over || (vsAI && turn === 'b')) return;
+  const moves = legal(turn);
+  if (sel) {
+    const m = moves.find(m => m.x === sel[0] && m.y === sel[1] && m.tx === x && m.ty === y);
+    if (m) { apply(m); render(); if (vsAI && turn === 'b' && !over) setTimeout(aiStep, 650); return; }
+  }
+  if (!chain && moves.some(m => m.x === x && m.y === y)) sel = [x, y];
+  render();
+}
+
+// Computer: greedy one-ply with light preferences (capture, crown, stay safe, advance).
+function aiStep() {
+  const moves = legal('b');
+  if (!moves.length) return;
+  const score = m => {
+    let s = Math.random() * .5;
+    if (m.cap) s += 10;
+    const p = B[m.y][m.x];
+    if (!p.k && m.ty === 7) s += 6;
+    if (!p.k) s += m.ty * .2;
+    for (const [dx, dy] of [[1,1],[1,-1],[-1,1],[-1,-1]]) {
+      const ax = m.tx + dx, ay = m.ty + dy, bx = m.tx - dx, by = m.ty - dy;
+      if (inside(ax, ay) && inside(bx, by)) {
+        const a = B[ay][ax];
+        const landing = !B[by][bx] || (bx === m.x && by === m.y);
+        if (a && a.c === 'r' && landing && (a.k || dy === 1)) s -= 8;
+      }
+    }
+    if (m.tx === 0 || m.tx === 7) s += .6;
+    return s;
+  };
+  const m = moves.reduce((a, b) => score(b) > score(a) ? b : a);
+  apply(m); render();
+  if (turn === 'b' && !over) setTimeout(aiStep, 520);
+}
+
+function makePiece(p) {
+  const pc = document.createElement('div');
+  pc.className = 'pc ' + (p.c === 'r' ? 'red' : 'blk') + (p.k ? ' king' : '');
+  pc.style.setProperty('--img', `url("${faceURL}")`);
+  // shadow, then edge layers stacked up to the top disc (kings are a double stack)
+  let html = '<div class="sh"></div>';
+  const h = p.k ? 20 : 10;
+  for (let z = 0; z < h; z += 1.5) html += `<div class="ly${z % 9 < 1.5 && z ? ' hi' : ''}" style="transform:translateZ(${z}px)"></div>`;
+  pc.innerHTML = html + '<div class="top"><div class="face"></div></div>';
+  return pc;
+}
+
+// Squares are a plain grid in the board's own plane, so offsets in square units animate
+// correctly under the 3D tilt without any screen-space maths.
+function playAnim(a, cell) {
+  const s = boardEl.offsetWidth / 8;
+  const mover = cell(a.tx, a.ty).querySelector('.pc');
+  const dx = (a.fx - a.tx) * s, dy = (a.fy - a.ty) * s;
+  const lift = a.cap ? 42 : 18;
+  mover?.animate([
+    {transform: `translate3d(${dx}px,${dy}px,0)`},
+    {transform: `translate3d(${dx / 2}px,${dy / 2}px,${lift}px)`, offset: .5},
+    {transform: 'translate3d(0,0,0)'}
+  ], {duration: a.cap ? 420 : 320, easing: 'cubic-bezier(.45,.05,.3,1)'});
+  mover?.animate([{transform: 'translateZ(0)'}, {transform: 'translateZ(-2px) scale(1.03,.97)'}, {transform: 'none'}],
+    {duration: 160, delay: a.cap ? 420 : 320, easing: 'ease-out'});
+  if (a.cap && a.capPiece) {
+    const ghost = makePiece(a.capPiece);
+    ghost.style.position = 'absolute'; ghost.style.pointerEvents = 'none';
+    cell(a.cap[0], a.cap[1]).appendChild(ghost);
+    ghost.animate([
+      {transform: 'none', opacity: 1},
+      {transform: 'translateZ(6px) scale(1.08)', opacity: 1, offset: .3},
+      {transform: 'translateZ(-10px) scale(.4) rotateZ(25deg)', opacity: 0}
+    ], {duration: 380, delay: 170, easing: 'ease-in', fill: 'both'}).onfinish = () => ghost.remove();
+  }
+  if (a.crowned && mover) mover.classList.add('crowned');
+}
+
+function render() {
+  const moves = over ? [] : legal(turn);
+  const myTurn = !(vsAI && turn === 'b');
+  const targets = sel ? moves.filter(m => m.x === sel[0] && m.y === sel[1]) : [];
+  const mustJump = moves.some(m => m.cap);
+  boardEl.innerHTML = '';
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+    const sq = document.createElement('div');
+    const dark = (x + y) % 2 === 1;
+    sq.className = 'sq ' + (dark ? 'd' : 'l');
+    if (last && ((last[0] === x && last[1] === y) || (last[2] === x && last[3] === y))) sq.classList.add('last');
+    if (myTurn && targets.some(m => m.tx === x && m.ty === y)) sq.classList.add('target');
+    const p = B[y][x];
+    if (p) {
+      const pc = makePiece(p);
+      const canMove = moves.some(m => m.x === x && m.y === y);
+      if (myTurn && p.c === turn && canMove) pc.classList.add(mustJump && !sel ? 'must' : 'mine');
+      if (sel && sel[0] === x && sel[1] === y) pc.classList.add('sel');
+      if (intro && faceReady && !reduced) pc.animate([
+        {transform: 'translateZ(120px)', opacity: 0},
+        {transform: 'translateZ(-3px)', opacity: 1, offset: .8},
+        {transform: 'none', opacity: 1}
+      ], {duration: 520, delay: (y < 4 ? y : 7 - y) * 90 + x * 25, easing: 'cubic-bezier(.3,.7,.4,1)', fill: 'backwards'});
+      sq.appendChild(pc);
+    }
+    if (dark) sq.addEventListener('click', () => click(x, y));
+    boardEl.appendChild(sq);
+  }
+  if (faceReady) intro = false;
+  if (anim && !reduced) playAnim(anim, (x, y) => boardEl.children[y * 8 + x]);
+  anim = null;
+  let r = 0, b = 0;
+  B.flat().forEach(p => p && (p.c === 'r' ? r++ : b++));
+  document.getElementById('cr').textContent = r;
+  document.getElementById('cb').textContent = b;
+  const name = c => c === 'r' ? 'Red' : 'Black';
+  statusEl.innerHTML = over ? `<b>${name(turn === 'r' ? 'b' : 'r')} wins</b>`
+    : vsAI ? (turn === 'r' ? (mustJump ? '<b>Your move</b> · jump required' : '<b>Your move</b>') : 'Carter is thinking…')
+    : `<b>${name(turn)}</b> to move${mustJump ? ' · jump required' : ''}`;
+}
+
+document.getElementById('reset').onclick = reset;
+const modeBtn = document.getElementById('mode');
+modeBtn.onclick = () => {
+  vsAI = !vsAI;
+  modeBtn.textContent = vsAI ? 'vs Computer' : '2 Players';
+  if (vsAI && turn === 'b' && !over) setTimeout(aiStep, 300);
+  render();
+};
+reset();
+</script>
+</body>
+</html>
