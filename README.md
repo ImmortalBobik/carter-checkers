@@ -4,7 +4,7 @@
 
 **Play it:** https://immortalbobik.github.io/carter-checkers/
 
-- Tap a piece, then a blue dot to move
+- Tap a piece then a square, drag it, or just tap a square only one piece can reach
 - Jumps are mandatory, multi-jumps chain, reach the far row to king
 - Play the computer or switch to 2 players
 
